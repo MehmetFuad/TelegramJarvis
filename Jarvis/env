@@ -1,0 +1,28 @@
+# JARVIS yerel ayarlar — GERCEK anahtarlari burada tut, git'e ASLA ekleme.
+# Bu dosya .gitignore icinde. GitHub'a yuklemeden once bos birak.
+# Sablon: .env.example
+
+# --- Telegram (zorunlu) ---
+# BotFather'dan al: https://t.me/BotFather -> /newbot
+TELEGRAM_BOT_TOKEN=
+# Kendi user ID'n: https://t.me/userinfobot
+ALLOWED_TELEGRAM_USER_ID=0
+
+# --- Gemini (zorunlu) ---
+# https://aistudio.google.com/app/apikey
+# Tek anahtar kullaniyorsan SADECE GEMINI_API_KEY_1 doldur; _2 ve _3 bos kalabilir.
+GEMINI_API_KEY_1=
+# Yedek anahtarlar (opsiyonel). _1 limitlenir/hatalanirsa sirayla _2, sonra _3 denenir.
+GEMINI_API_KEY_2=
+GEMINI_API_KEY_3=
+# Model adi. Google'da YAYINLANMIS bir model olmali; olmayan bir ad yazarsan
+# cagrilar "model bulunamadi" hatasi verir. Varsayilan: gemini-3.5-flash-lite
+GEMINI_MODEL=gemini-3.5-flash-lite
+
+# --- Dashboard (opsiyonel) ---
+DASHBOARD_HOST=127.0.0.1
+DASHBOARD_PORT=8000
+
+# --- Genel ---
+LOG_LEVEL=INFO
+DATA_DIR=data
