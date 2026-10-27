@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS — Kontrol Paneli</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #050b14; color: #c9e7f2; font-family: ui-monospace, Consolas, monospace; }
+  .panel { background: rgba(13, 30, 48, 0.75); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 0.5rem; }
+  .accent { color: #38bdf8; }
+  .dot { width: 10px; height: 10px; border-radius: 9999px; display: inline-block; }
+  .dot-on { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+  .dot-off { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+  .dot-na { background: #6b7280; }
+  .btn { border: 1px solid rgba(56,189,248,.4); color: #7dd3fc; padding: .25rem .75rem; border-radius: .375rem; font-size: .8rem; }
+  .btn:hover { background: rgba(56,189,248,.15); }
+  .btn-danger { border-color: rgba(239,68,68,.5); color: #fca5a5; }
+  .btn-danger:hover { background: rgba(239,68,68,.15); }
+  input { background: #0a1626; border: 1px solid rgba(56,189,248,.3); border-radius: .375rem; padding: .3rem .6rem; font-size: .8rem; width: 100%; color: #e0f2fe; }
+  table { width: 100%; font-size: .8rem; }
+  th { text-align: left; color: #67e8f9; font-weight: 600; padding: .35rem .5rem; border-bottom: 1px solid rgba(56,189,248,.25); }
+  td { padding: .3rem .5rem; border-bottom: 1px solid rgba(56,189,248,.08); word-break: break-all; }
+  #logstream { max-height: 320px; overflow-y: auto; font-size: .75rem; line-height: 1.5; }
+</style>
+</head>
+<body class="p-4 max-w-6xl mx-auto">
+<header class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-bold tracking-widest"><span class="accent">◈</span> JARVIS <span class="text-sm font-normal text-slate-400">kontrol paneli</span></h1>
+  <div class="flex items-center gap-3">
+    <div class="text-xs text-slate-400">yalnızca localhost</div>
+    <button class="btn btn-danger" onclick="shutdownJarvis()">⏻ Durdur</button>
+  </div>
+</header>
+
+<!-- Durum çubuğu -->
+<section class="panel p-3 mb-4 flex flex-wrap gap-x-6 gap-y-2 text-sm" id="statusbar">
+  <span><span class="dot dot-na" id="dot-bot"></span> Bot: <b id="bot-state">…</b></span>
+  <span><span class="dot dot-na" id="dot-gemini"></span> Gemini: <b id="gemini-state">…</b></span>
+  <span>Uptime: <b id="uptime" class="accent">…</b></span>
+  <span>Mesaj: <b id="msgcount" class="accent">…</b></span>
+  <span>Son mesaj: <b id="lastmsg">…</b></span>
+  <span>Tool: <b id="toolcount" class="accent">…</b></span>
+  <span>Telegram: <b id="cfg-tg">…</b></span>
+  <span>Gemini key: <b id="cfg-gem">…</b></span>
+  <span>Son çökme: <b id="crash" class="text-red-300">yok</b></span>
+</section>
+
+<div class="grid md:grid-cols-2 gap-4">
+  <!-- Log akışı -->
+  <section class="panel p-3">
+    <h2 class="accent text-sm font-bold mb-2 tracking-wider">CANLI LOG <span class="text-slate-500 font-normal">(3 sn)</span></h2>
+    <div id="logstream" class="text-slate-300"><div class="text-slate-500">yükleniyor…</div></div>
+  </section>
+  <!-- Onay geçmişi -->
+  <section class="panel p-3">
+    <h2 class="accent text-sm font-bold mb-2 tracking-wider">ONAY GEÇMİŞİ</h2>
+    <div id="decisions" class="text-slate-300 text-xs"><div class="text-slate-500">yükleniyor…</div></div>
+  </section>
+</div>
+
+<!-- Komut Paneli -->
+<section class="panel p-3 mt-4">
+  <h2 class="accent text-sm font-bold mb-2 tracking-wider">KOMUT PANELİ <span class="text-slate-500 font-normal">(Telegram ile aynı çekirdek)</span></h2>
+  <div id="chatlog" class="text-sm mb-2" style="max-height:300px;overflow-y:auto;">
+    <div class="text-slate-500 text-xs">Bir komut yazın ya da mikrofonla konuşun…</div>
+  </div>
+  <div class="flex gap-2">
+    <input id="chat-in" placeholder="örn. Notepad aç / sesi 20 yap" onkeydown="if(event.key==='Enter')sendChat()">
+    <button class="btn whitespace-nowrap" onclick="sendChat()">➤</button>
+    <button class="btn whitespace-nowrap" id="mic-btn" onclick="toggleMic()">🎤 Başla</button>
+  </div>
+  <div id="pending-row" class="flex gap-2 mt-2"></div>
+</section>
+
+<!-- Uygulamalar -->
+<section class="panel p-3 mt-4">
+  <h2 class="accent text-sm font-bold mb-2 tracking-wider">UYGULAMA YÖNETİCİSİ</h2>
+  <div class="flex gap-2 mb-2">
+    <input id="app-name" placeholder="isim (örn. spotify)">
+    <input id="app-path" placeholder="dosya yolu (örn. C:\…\spotify.exe)">
+    <button class="btn whitespace-nowrap" onclick="addApp()">+ Ekle</button>
+    <button class="btn whitespace-nowrap" onclick="loadApps()">↻</button>
+    <button class="btn whitespace-nowrap" onclick="scanShortcuts()">⚙ Kısayolları Yeniden Tara</button>
+  </div>
+  <div id="scan-info" class="text-xs text-slate-500 mb-1"></div>
+  <table><thead><tr><th>İsim</th><th>Yol</th><th></th></tr></thead><tbody id="apps"></tbody></table>
+</section>
+
+<!-- Kanallar -->
+<section class="panel p-3 mt-4 mb-8">
+  <h2 class="accent text-sm font-bold mb-2 tracking-wider">KANAL YÖNETİCİSİ</h2>
+  <div class="flex gap-2 mb-2">
+    <input id="ch-name" placeholder="kayıt adı (örn. ornek-kanal)">
+    <input id="ch-id" placeholder="channel_id (UC ile başlar)">
+    <button class="btn whitespace-nowrap" onclick="addChannel()">+ Ekle</button>
+    <button class="btn whitespace-nowrap" onclick="loadChannels()">↻</button>
+  </div>
+  <table><thead><tr><th>Ad</th><th>channel_id</th><th></th></tr></thead><tbody id="channels"></tbody></table>
+</section>
+
+<script>
+async function jget(url) { const r = await fetch(url); return r.json(); }
+async function jpost(url, body) {
+  const r = await fetch(url, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.detail || "hata");
+  return d;
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function fmtUptime(s) {
+  s = s || 0;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return (h > 0 ? h + "s " : "") + m + "d " + sec + "sn";
+}
+function setDot(id, state) {
+  const el = document.getElementById(id);
+  el.className = "dot " + (state === true ? "dot-on" : state === false ? "dot-off" : "dot-na");
+}
+
+async function refreshStatus() {
+  try {
+    const s = await jget("/api/status");
+    setDot("dot-bot", s.bot_running);
+    document.getElementById("bot-state").textContent = s.bot_running ? "Aktif" : "Pasif";
+    setDot("dot-gemini", s.gemini_ok);
+    document.getElementById("gemini-state").textContent = s.gemini_ok === true ? "OK" : s.gemini_ok === false ? "Hata" : "—";
+    document.getElementById("uptime").textContent = fmtUptime(s.uptime_seconds);
+    document.getElementById("msgcount").textContent = s.message_count;
+    document.getElementById("lastmsg").textContent = s.last_message_at || "—";
+    document.getElementById("toolcount").textContent = s.tool_count;
+    document.getElementById("cfg-tg").textContent = s.telegram_configured ? "yapılandırıldı" : "eksik";
+    document.getElementById("cfg-gem").textContent = s.gemini_configured ? "yapılandırıldı" : "eksik";
+    document.getElementById("crash").textContent = s.last_crash ? (s.last_crash.time + " " + s.last_crash.service + ": " + s.last_crash.reason) : "yok";
+  } catch (e) { /* sessiz geç */ }
+}
+async function shutdownJarvis() {
+  if (!confirm("JARVIS tamamen durdurulsun mu? (Yeniden baslatmak icin python run.py gerekir.)")) return;
+  try { await jpost("/api/shutdown", {}); alert("Kapatma istegi gonderildi."); }
+  catch (e) { alert("Istek gonderilemedi: " + e.message); }
+}
+async function refreshLogs() {
+  try {
+    const d = await jget("/api/logs?limit=30");
+    document.getElementById("logstream").innerHTML = d.logs.length
+      ? d.logs.map(l => `<div><span class="text-slate-500">${esc(l.time)}</span> <span class="accent">[${esc(l.logger)}]</span> ${esc(l.message)}</div>`).join("")
+      : '<div class="text-slate-500">kayıt yok</div>';
+  } catch (e) { /* sessiz geç */ }
+}
+async function refreshDecisions() {
+  try {
+    const d = await jget("/api/decisions?limit=20");
+    document.getElementById("decisions").innerHTML = d.decisions.length
+      ? d.decisions.map(x => `<div><span class="text-slate-500">${esc(x.time)}</span> ${esc(x.message)}</div>`).join("")
+      : '<div class="text-slate-500">henüz onay/ret yok</div>';
+  } catch (e) { /* sessiz geç */ }
+}
+async function loadApps() {
+  const d = await jget("/api/apps");
+  document.getElementById("apps").innerHTML = d.apps.map(a =>
+    `<tr><td class="accent">${esc(a.name)}</td><td class="text-slate-400">${esc(a.path)}</td>` +
+    `<td><button class="btn btn-danger" onclick="delApp('${esc(a.name)}')">Sil</button></td></tr>`).join("");
+}
+async function addApp() {
+  const name = document.getElementById("app-name").value, path = document.getElementById("app-path").value;
+  try { await jpost("/api/apps", { action: "add", name, path }); document.getElementById("app-name").value = ""; document.getElementById("app-path").value = ""; loadApps(); }
+  catch (e) { alert("Eklenemedi: " + e.message); }
+}
+async function delApp(name) {
+  if (!confirm(name + " silinsin mi?")) return;
+  try { await jpost("/api/apps", { action: "delete", name }); loadApps(); }
+  catch (e) { alert("Silinemedi: " + e.message); }
+}
+async function loadChannels() {
+  const d = await jget("/api/channels");
+  document.getElementById("channels").innerHTML = d.channels.map(c =>
+    `<tr><td class="accent">${esc(c.name)}</td><td class="text-slate-400">${esc(c.channel_id)}</td>` +
+    `<td><button class="btn btn-danger" onclick="delChannel('${esc(c.name)}')">Sil</button></td></tr>`).join("");
+}
+async function addChannel() {
+  const name = document.getElementById("ch-name").value, channel_id = document.getElementById("ch-id").value;
+  try { await jpost("/api/channels", { action: "add", name, channel_id }); document.getElementById("ch-name").value = ""; document.getElementById("ch-id").value = ""; loadChannels(); }
+  catch (e) { alert("Eklenemedi: " + e.message); }
+}
+async function delChannel(name) {
+  if (!confirm(name + " silinsin mi?")) return;
+  try { await jpost("/api/channels", { action: "delete", name }); loadChannels(); }
+  catch (e) { alert("Silinemedi: " + e.message); }
+}
+async function scanShortcuts() {
+  document.getElementById("scan-info").textContent = "taranıyor…";
+  try {
+    const d = await jpost("/api/scan-shortcuts", { force: true });
+    document.getElementById("scan-info").textContent =
+      d.updated ? (d.count + " uygulama bulundu, indeks güncellendi.") : ("Önbellek güncel (" + d.count + " uygulama).");
+    loadApps();
+  } catch (e) { document.getElementById("scan-info").textContent = "Tarama hatası: " + e.message; }
+}
+/* --- Komut paneli --- */
+function bubble(who, text) {
+  const log = document.getElementById("chatlog");
+  const cls = who === "sen" ? "text-right" : "text-left";
+  const color = who === "sen" ? "text-cyan-200" : "text-slate-200";
+  const tag = who === "sen" ? "SEN" : "JARVIS";
+  log.insertAdjacentHTML("beforeend",
+    `<div class="${cls} mb-1"><span class="text-xs text-slate-500">${tag}:</span> <span class="${color}">${esc(text)}</span></div>`);
+  log.scrollTop = log.scrollHeight;
+}
+function showFiles(files) {
+  const log = document.getElementById("chatlog");
+  (files || []).forEach(f => {
+    log.insertAdjacentHTML("beforeend",
+      `<div class="text-left mb-1">📎 <a class="accent underline" href="${esc(f.url)}" target="_blank">${esc(f.name)}</a></div>`);
+  });
+  log.scrollTop = log.scrollHeight;
+}
+function showPending(pending) {
+  const row = document.getElementById("pending-row");
+  row.innerHTML = "";
+  if (!pending) return;
+  if (pending.type === "confirmation") {
+    row.innerHTML = `<button class="btn" onclick="resolveChat('confirm','yes')">✅ Evet</button>
+                     <button class="btn btn-danger" onclick="resolveChat('confirm','no')">❌ Hayır</button>`;
+  } else if (pending.type === "choice") {
+    row.innerHTML = (pending.options || []).slice(0, 8).map(o =>
+      `<button class="btn" onclick="resolveChat('choice','${esc(o.id)}')">${esc(o.label)}</button>`).join("");
+  }
+}
+async function sendChat() {
+  const box = document.getElementById("chat-in");
+  const msg = box.value.trim();
+  if (!msg) return;
+  box.value = "";
+  bubble("sen", msg);
+  try {
+    const d = await jpost("/api/chat", { message: msg });
+    bubble("jarvis", d.reply);
+    showFiles(d.files);
+    showPending(d.pending);
+  } catch (e) { bubble("jarvis", "Hata: " + e.message); }
+}
+async function resolveChat(kind, value) {
+  document.getElementById("pending-row").innerHTML = "";
+  try {
+    const d = await jpost("/api/chat/resolve", { kind, value });
+    bubble("jarvis", d.reply);
+    showFiles(d.files);
+    showPending(d.pending);
+  } catch (e) { bubble("jarvis", "Hata: " + e.message); }
+}
+let recorder = null, chunks = [], recStartedAt = 0;
+async function toggleMic() {
+  const btn = document.getElementById("mic-btn");
+  if (recorder) { recorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recorder = new MediaRecorder(stream);
+    chunks = [];
+    recStartedAt = Date.now();
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    recorder.onstop = async () => {
+      btn.textContent = "🎤 Başla";
+      const elapsed = Date.now() - recStartedAt;
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      const mime = recorder.mimeType || "audio/webm";
+      recorder.stream.getTracks().forEach(t => t.stop());
+      recorder = null;
+      if (elapsed < 1000 || blob.size < 2000) {
+        bubble("jarvis", "Kayıt çok kısa/küçük oldu, komut anlaşılamaz. Biraz daha uzun basılı tutup net konuşmayı deneyin.");
+        return;
+      }
+      const b64 = await new Promise(res => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result).split(",")[1]);
+        fr.readAsDataURL(blob);
+      });
+      bubble("sen", "🎤 ses gönderildi, çözümleniyor…");
+      try {
+        const d = await jpost("/api/voice_command", { audio_base64: b64, mime_type: mime });
+        bubble("sen", "🗣 " + d.transcript);
+        bubble("jarvis", d.reply);
+        showFiles(d.files);
+        showPending(d.pending);
+      } catch (e) { bubble("jarvis", "Ses hatası: " + e.message); }
+    };
+    recorder.start();
+    btn.textContent = "⏹ Durdur";
+  } catch (e) { bubble("jarvis", "Mikrofon açılamadı: " + e.message); }
+}
+
+refreshStatus(); refreshLogs(); refreshDecisions(); loadApps(); loadChannels();
+setInterval(() => { refreshStatus(); refreshLogs(); refreshDecisions(); }, 3000);
+setInterval(() => { loadApps(); loadChannels(); }, 15000);
+</script>
+</body>
+</html>

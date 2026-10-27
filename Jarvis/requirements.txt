@@ -1,0 +1,39 @@
+# JARVIS — Windows bagimliliklari
+# Kurulum (onerilen):  powershell -ExecutionPolicy Bypass -File scripts\kurulum.ps1
+# Elle:                pip install -r requirements.txt
+# Onerilen Python: 3.11 veya 3.12 (3.10 destekli; 3.13+ ile bazi paketler sorun cikarabilir).
+
+# --- Telegram botu ---
+python-telegram-bot[ext]>=21.0
+python-dotenv>=1.0
+
+# --- Gemini beyin (function calling + coklu anahtar failover) ---
+google-genai>=1.0.0
+
+# --- Ekran goruntusu ---
+mss>=9.0
+
+# --- Belge + YouTube RSS + web arama (API key gerektirmez) ---
+python-docx>=1.1
+requests>=2.31
+feedparser>=6.0
+ddgs>=9.0
+
+# --- Dashboard ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
+# --- Masaustu uygulamasi + kisayol tarama + medya/ses ---
+pywebview>=5.0
+pywin32>=306
+rapidfuzz>=3.0
+pycaw>=20240210
+comtypes>=1.2
+pyautogui>=0.9
+
+# --- OCR + tarayici/WhatsApp otomasyonu (yonetici izni gerekmez) ---
+Pillow>=10.0
+pytesseract>=0.3.10
+pyperclip>=1.8
+# Agir ama en dogru OCR alternatifi (opsiyonel, torch indirir):
+# easyocr>=1.7
